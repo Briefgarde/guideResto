@@ -74,4 +74,10 @@ public class Restaurant {
     public void setType(RestaurantType type) {
         this.type = type;
     }
+
+    public Integer getId() {
+        return id;
+    }
+
+    
 }

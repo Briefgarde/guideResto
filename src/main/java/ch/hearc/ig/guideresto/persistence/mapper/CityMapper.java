@@ -10,6 +10,7 @@ import java.util.*;
 
 public class CityMapper implements IMapper<City>{
     private final Connection connection;
+    
     public CityMapper(){
         this.connection = DbConnection.createConnection();
     }
@@ -118,7 +119,6 @@ public class CityMapper implements IMapper<City>{
             System.out.println(e);
             return null;
         }
-
     }
 
     @Override
