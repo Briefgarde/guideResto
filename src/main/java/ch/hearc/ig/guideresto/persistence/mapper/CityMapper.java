@@ -40,8 +40,6 @@ public class CityMapper implements IMapper<City>{
             System.out.println(e);
         }
         return null;
-
-
     }
     @Override
     public HashSet<City> findAll() {
@@ -68,7 +66,7 @@ public class CityMapper implements IMapper<City>{
     @Override
     public City insert(City newCity) {
         try {
-            PreparedStatement insert = connection.prepareStatement("INSERT INTO villes (CODE_POSTAL, NOM_VILLE) VVALUES (?, ?)");
+            PreparedStatement insert = connection.prepareStatement("INSERT INTO villes (CODE_POSTAL, NOM_VILLE) VALUES (?, ?)");
             insert.setString(1, newCity.getZipCode());
             insert.setString(2, newCity.getCityName());
             insert.executeQuery();
@@ -89,8 +87,7 @@ public class CityMapper implements IMapper<City>{
                         resultSet.getString("CODE_POSTAL"),
                         resultSet.getString("nom_ville")
                 );
-                return city; //by doing this we assure that activeCities is still up-to-date on any city in use
-
+                return city; //by doing this we assure that the city returned has an ID
             }
         }catch (SQLException e){
             System.out.println("FetchBack fucked up");

@@ -71,7 +71,7 @@ public class RestaurantTypeMapper implements IMapper<RestaurantType> {
     @Override
     public RestaurantType insert(RestaurantType type) {
         try {
-            PreparedStatement insert = connection.prepareStatement("INSERT INTO TYPES_GASTRONOMIQUES (DESCRIPTION, LIBELLE) VVALUES (?, ?)");
+            PreparedStatement insert = connection.prepareStatement("INSERT INTO TYPES_GASTRONOMIQUES (DESCRIPTION, LIBELLE) VALUES (?, ?)");
             insert.setString(1, type.getDescription());
             insert.setString(2, type.getLabel());
             insert.executeQuery();

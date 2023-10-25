@@ -4,18 +4,26 @@ import java.sql.*;
 import static java.sql.DriverManager.*;
 
 public class DbConnection {
-    public static Connection createConnection(){
+
+    private static Connection connection;
+
+    private DbConnection(){
         try {
             registerDriver(new oracle.jdbc.OracleDriver());
             String url = "jdbc:oracle:thin:@db.ig.he-arc.ch:1521:ens";
             Connection connection = getConnection(url, "nemo_vollert", "nemo_vollert");
             connection.setAutoCommit(true);
-            return connection;
+            this.connection = connection;
         }
         catch (SQLException sqlException){
             System.out.println(sqlException);
-            return null;
         }
+    }
+    public static Connection createConnection(){
+        if (connection == null){
+            new DbConnection();
+        }
+        return connection;
     }
     public static void dropSession(Connection connection){
         try{

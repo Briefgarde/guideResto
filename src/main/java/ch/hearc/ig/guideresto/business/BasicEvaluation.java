@@ -18,4 +18,7 @@ public class BasicEvaluation extends Evaluation {
     return likeRestaurant;
   }
 
+  public String getIpAddress() {
+    return ipAddress;
+  }
 }

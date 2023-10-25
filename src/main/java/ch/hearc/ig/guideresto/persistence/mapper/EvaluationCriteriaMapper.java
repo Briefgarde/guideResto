@@ -69,7 +69,7 @@ public class EvaluationCriteriaMapper implements IMapper<EvaluationCriteria> {
     @Override
     public EvaluationCriteria insert(EvaluationCriteria newEvalCrit) {
         try {
-            PreparedStatement insert = connection.prepareStatement("INSERT INTO CRITERES_EVALUATION (NOM, DESCRIPTION) VVALUES (?, ?)");
+            PreparedStatement insert = connection.prepareStatement("INSERT INTO CRITERES_EVALUATION (NOM, DESCRIPTION) VALUES (?, ?)");
             insert.setString(1, newEvalCrit.getName());
             insert.setString(2, newEvalCrit.getDescription());
             insert.executeQuery();
