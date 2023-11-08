@@ -1,17 +1,9 @@
 package ch.hearc.ig.guideresto.presentation;
 
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
-import ch.hearc.ig.guideresto.business.BasicEvaluation;
-import ch.hearc.ig.guideresto.business.City;
-import ch.hearc.ig.guideresto.business.CompleteEvaluation;
-import ch.hearc.ig.guideresto.business.Evaluation;
-import ch.hearc.ig.guideresto.business.EvaluationCriteria;
-import ch.hearc.ig.guideresto.business.Grade;
-import ch.hearc.ig.guideresto.business.Restaurant;
-import ch.hearc.ig.guideresto.business.RestaurantType;
+import ch.hearc.ig.guideresto.business.*;
 import ch.hearc.ig.guideresto.persistence.FakeItems;
+import ch.hearc.ig.guideresto.persistence.mapper.*;
+
 import java.io.PrintStream;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
@@ -20,10 +12,11 @@ import java.util.InputMismatchException;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
-import ch.hearc.ig.guideresto.persistence.mapper.CityMapper;
-import ch.hearc.ig.guideresto.persistence.mapper.IMapper;
 
-public class CLI {
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableSet;
+
+public class CLIv2 {
 
   private final Scanner scanner;
   private final PrintStream printStream;
@@ -32,7 +25,7 @@ public class CLI {
 
 
   // Injection de dépendances
-  public CLI(Scanner scanner, PrintStream printStream, FakeItems fakeItems) {
+  public CLIv2(Scanner scanner, PrintStream printStream, FakeItems fakeItems) {
     this.scanner = scanner;
     this.printStream = printStream;
     this.fakeItems = fakeItems; //I'll have to slowly remove functionalities of this.
@@ -86,7 +79,7 @@ public class CLI {
     }
   }
 
-  private Optional<Restaurant> pickRestaurant(Set<ch.hearc.ig.guideresto.business.Restaurant> restaurants) {
+  private Optional<Restaurant> pickRestaurant(Set<Restaurant> restaurants) {
     if (restaurants.isEmpty()) {
       println("Aucun restaurant n'a été trouvé !");
       return Optional.empty();
@@ -108,7 +101,7 @@ public class CLI {
   private void showRestaurantsList() {
     println("Liste des restaurants : ");
 
-    Set<Restaurant> restaurants = fakeItems.getAllRestaurants();
+    Set<Restaurant> restaurants = RestaurantMapper.getINSTANCE().findAllRestaurant();
 
     Optional<Restaurant> maybeRestaurant = pickRestaurant(restaurants);
     // Si l'utilisateur a choisi un restaurant, on l'affiche, sinon on ne fait rien et l'application va réafficher le menu principal
@@ -119,10 +112,7 @@ public class CLI {
     println("Veuillez entrer une partie du nom recherché : ");
     String research = readString();
 
-    Set<Restaurant> restaurants = fakeItems.getAllRestaurants()
-        .stream()
-        .filter(r -> r.getName().equalsIgnoreCase(research))
-        .collect(toUnmodifiableSet());
+    Set<Restaurant> restaurants = RestaurantMapper.getINSTANCE().findResByName(research);
 
     Optional<Restaurant> maybeRestaurant = pickRestaurant(restaurants);
     maybeRestaurant.ifPresent(this::showRestaurant);
@@ -136,10 +126,7 @@ public class CLI {
     println("Veuillez entrer une partie du nom de la ville désirée : ");
     String research = readString();
 
-    Set<Restaurant> restaurants = fakeItems.getAllRestaurants()
-        .stream()
-        .filter(r -> r.getAddress().getCity().getCityName().toUpperCase().contains(research.toUpperCase()))
-        .collect(toUnmodifiableSet());
+    Set<Restaurant> restaurants = RestaurantMapper.getINSTANCE().findResByCity(research);
 
     Optional<Restaurant> maybeRestaurant = pickRestaurant(restaurants);
     maybeRestaurant.ifPresent(this::showRestaurant);
@@ -159,8 +146,7 @@ public class CLI {
       String zipCode = readString();
       println("Veuillez entrer le nom de la nouvelle ville : ");
       String cityName = readString();
-      City city = new City(1, zipCode, cityName);
-      fakeItems.getCities().add(city);
+      City city = CityMapper.getINSTANCE().insert(cityName, zipCode);
       return city;
     }
 
@@ -183,7 +169,7 @@ public class CLI {
   }
 
   private void searchRestaurantByType() {
-    Set<RestaurantType> restaurantTypes = fakeItems.getRestaurantTypes();
+    Set<RestaurantType> restaurantTypes = RestaurantTypeMapper.getINSTANCE().findAll();
     RestaurantType chosenType = pickRestaurantType(restaurantTypes);
 
     Set<Restaurant> restaurants = fakeItems.getAllRestaurants()
@@ -255,7 +241,13 @@ public class CLI {
       showRestaurantMenu();
       choice = readInt();
       proceedRestaurantMenu(choice, restaurant);
+      RestaurantMapper.getINSTANCE().update(restaurant);
+      //unless the user makes the terminal crash
+      // (which is a use case I'm not going to deal with)
+      // the user always circle back to this after doing any kind of potential change to the restaurant
+      // thus, it is the ideal moment to update the restaurant in the db
     } while (choice != 0 && choice != 6); // 6 car le restaurant est alors supprimé...
+
   }
 
   private long countLikes(Set<Evaluation> evaluations, boolean likeRestaurant) {
@@ -340,7 +332,7 @@ public class CLI {
 
     println("Veuillez svp donner une note entre 1 et 5 pour chacun de ces critères : ");
 
-    Set<EvaluationCriteria> evaluationCriterias = fakeItems.getEvaluationCriterias();
+    Set<EvaluationCriteria> evaluationCriterias = EvaluationCriteriaMapper.getINSTANCE().findAll();
 
     evaluationCriterias.forEach(currentCriteria -> {
       println(currentCriteria.getName() + " : " + currentCriteria.getDescription());
@@ -381,7 +373,7 @@ public class CLI {
     println("Nouvelle rue : ");
     restaurant.getAddress().setStreet(readString());
 
-    Set<City> cities = fakeItems.getCities();
+    Set<City> cities = CityMapper.getINSTANCE().findAll();
 
     City newCity = pickCity(cities);
     if (newCity.equals(restaurant.getAddress().getCity())) {
@@ -399,7 +391,11 @@ public class CLI {
     if ("o".equalsIgnoreCase(choice)) {
       restaurant.getAddress().getCity().getRestaurants().remove(restaurant);
       restaurant.getType().getRestaurants().remove(restaurant);
-      fakeItems.getAllRestaurants().remove(restaurant);
+      //Those ^^ don't need to be modified in the DB, because they don't have a FK on any restaurant
+      //Those vv needs to be deleted, or the constraints are going to scream
+      CompleteEvalMapper.getINSTANCE().deleteForRestaurant(restaurant);
+      BasicEvalMapper.getINSTANCE().deleteForRestaurant(restaurant);
+      RestaurantMapper.getINSTANCE().delete(restaurant);
       println("Le restaurant a bien été supprimé !");
     }
   }

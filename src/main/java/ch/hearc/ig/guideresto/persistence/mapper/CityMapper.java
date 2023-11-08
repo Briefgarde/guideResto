@@ -8,62 +8,78 @@ import ch.hearc.ig.guideresto.persistence.DbConnection;
 import java.sql.*;
 import java.util.*;
 
-public class CityMapper implements IMapper<City>{
-    private final Connection connection;
+public final class CityMapper{
+    private Connection connection;
+
+    private static CityMapper INSTANCE;
+
+    private Map<Integer, City> activeCity = new LinkedHashMap<>();
     
-    public CityMapper(){
+    private CityMapper(){
         this.connection = DbConnection.createConnection();
     }
 
-    public Connection getConnection() {
-        return connection;
+
+    public static CityMapper getINSTANCE(){
+        if (INSTANCE == null){
+            INSTANCE = new CityMapper();
+        }
+        return INSTANCE;
     }
 
-    @Override
+
     public City findByID(int pk) {
-        try{
-            PreparedStatement query = connection.prepareStatement("SELECT * FROM villes WHERE numero = ?");
-            query.setInt(1, pk);
-            ResultSet resultSet = query.executeQuery();
-            if (resultSet.next()){
-                return new City(
-                        resultSet.getInt("numero"),
-                        resultSet.getString("CODE_POSTAL"),
-                        resultSet.getString("nom_ville")
-                );
-            }
-            else {
-                System.out.println("Aucune ville trouvée.");
+        if (!activeCity.containsKey(pk)){
+            try{
+                PreparedStatement query = connection.prepareStatement("SELECT * FROM VILLES WHERE numero = ?");
+                query.setInt(1, pk);
+                ResultSet resultSet = query.executeQuery();
+                if (resultSet.next()){
+                    return new City(
+                            resultSet.getInt("numero"),
+                            resultSet.getString("CODE_POSTAL"),
+                            resultSet.getString("nom_ville")
+                    );
+                }
+                else {
+                    System.out.println("Aucune ville trouvée.");
+                    return null;
+                }
+            }catch (SQLException e) {
+                System.out.println(e);
                 return null;
             }
-        }catch (SQLException e) {
+
+        }
+        return activeCity.get(pk);
+    }
+
+    public Set<City> findAll(){
+        try {
+            PreparedStatement query = connection.prepareStatement(
+                    "SELECT * FROM VILLES"
+            );
+            ResultSet resultSet = query.executeQuery();
+
+            while (resultSet.next()){
+                if (activeCity.containsKey(resultSet.getInt("NUMERO"))){
+                    activeCity.put(
+                            resultSet.getInt("NUMERO"),
+                            new City(
+                                    resultSet.getInt("NUMERO"),
+                                    resultSet.getString("CODE_POSTAL"),
+                                    resultSet.getString("NOM_VILLE")
+                            )
+                    );
+
+                }
+            }
+            return new HashSet<City>(activeCity.values());
+        }catch (SQLException e){
             System.out.println(e);
         }
         return null;
     }
-    @Override
-    public HashSet<City> findAll() {
-        try {
-            PreparedStatement query = connection.prepareStatement("SELECT * FROM villes");
-            ResultSet resultSet = query.executeQuery();
-
-            HashSet<City> retour = new HashSet(); //ideally here, I'd make "retour" a Set, and initialize it as a HashSet.
-            while (resultSet.next()){
-                City city = new City(
-                        resultSet.getInt("numero"),
-                        resultSet.getString("CODE_POSTAL"),
-                        resultSet.getString("nom_ville")
-                );
-                retour.add(city);
-            }
-            return retour;
-        }catch (SQLException e){
-            System.out.println(e);
-            return null;
-        }
-    }
-
-    @Override
     public City insert(City newCity) {
         try {
             PreparedStatement insert = connection.prepareStatement("INSERT INTO villes (CODE_POSTAL, NOM_VILLE) VALUES (?, ?)");
@@ -96,7 +112,36 @@ public class CityMapper implements IMapper<City>{
         return null;
     }
 
-    @Override
+    public City insert(String name, String zipcode){
+        try {
+            PreparedStatement getPK = connection.prepareStatement(
+                    "SELECT SEQ_VILLES.nextval FROM dual"
+            );
+            ResultSet resPK = getPK.executeQuery();
+            int pk = -1;
+            if (resPK.next()){
+                pk = resPK.getInt("NEXTVAL");
+            } else { throw new SQLException("next val didn't work");}
+            PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO VILLES (NUMERO, CODE_POSTAL, NOM_VILLE) VALUES (?, ?, ?)"
+            );
+            insert.setInt(1, pk);
+            insert.setString(2, zipcode);
+            insert.setString(3, name);
+            insert.executeQuery();
+
+            City ret = findByID(pk);
+
+            return ret;
+
+        }catch (SQLException e){
+            System.out.println("CITY INSERT FUCKED UP");
+        }
+
+        return null;
+    }
+
+
     public City update(City city) {
         try {
             PreparedStatement update = connection.prepareStatement("UPDATE villes SET CODE_POSTAL = ?, NOM_VILLE = ? WHERE numero = ?");
@@ -118,7 +163,7 @@ public class CityMapper implements IMapper<City>{
         }
     }
 
-    @Override
+
     public void delete(City city) {
         try {
             PreparedStatement deleteQuery = connection.prepareStatement("DELETE FROM villes WHERE numero = ?");
@@ -134,4 +179,6 @@ public class CityMapper implements IMapper<City>{
             System.out.println(e);
         }
     }
+
+
 }

@@ -14,6 +14,14 @@ public class Grade {
         this.criteria = criteria;
     }
 
+    public Integer getId() {
+        return id;
+    }
+
+    public CompleteEvaluation getEvaluation() {
+        return evaluation;
+    }
+
     public Integer getGrade() {
         return grade;
     }

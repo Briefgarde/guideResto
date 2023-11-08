@@ -1,5 +1,9 @@
 package ch.hearc.ig.guideresto.business;
 
+import ch.hearc.ig.guideresto.persistence.mapper.RestaurantMapper;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
@@ -17,6 +21,8 @@ public class CompleteEvaluation extends Evaluation {
     this.username = username;
     this.grades = new HashSet<>();
   }
+
+
 
   public String getComment() {
     return comment;

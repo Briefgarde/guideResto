@@ -9,18 +9,22 @@ import java.util.HashSet;
 import ch.hearc.ig.guideresto.business.EvaluationCriteria;
 import ch.hearc.ig.guideresto.persistence.DbConnection;
 
-public class EvaluationCriteriaMapper implements IMapper<EvaluationCriteria> {
+public final class EvaluationCriteriaMapper implements IMapper<EvaluationCriteria> {
 
-    private final Connection connection;
+    private Connection connection;
+
+    private static EvaluationCriteriaMapper INSTANCE;
     
-    public EvaluationCriteriaMapper(){
+    private EvaluationCriteriaMapper(){
         this.connection = DbConnection.createConnection();
     }
 
-    public Connection getConnection() {
-        return connection;
-    } 
-
+    public static EvaluationCriteriaMapper getINSTANCE(){
+        if (INSTANCE == null){
+            INSTANCE = new EvaluationCriteriaMapper();
+        }
+        return INSTANCE;
+    }
     @Override
     public EvaluationCriteria findByID(int pk) {
         try{

@@ -2,49 +2,52 @@ package ch.hearc.ig.guideresto.persistence.mapper;
 
 import ch.hearc.ig.guideresto.business.BasicEvaluation;
 import ch.hearc.ig.guideresto.business.City;
+import ch.hearc.ig.guideresto.business.Restaurant;
 import ch.hearc.ig.guideresto.persistence.DbConnection;
 
+import javax.swing.plaf.basic.BasicIconFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.time.LocalDate;
 import java.sql.Date;
+import java.util.List;
 
-public class BasicEvalMapper implements IMapper<BasicEvaluation> {
+public class BasicEvalMapper{
     //should this class even implement this interface, given that it likely will never use the findbyId and findAll method ?
     //more likely, it'll use a findForRestaurant(Restaurant r/int pkRestaurant) type of stuff...
     //granted, the findByID is useful for the fetchback thing I do in insert/update...
 
     private Connection connection;
 
-    private RestaurantMapper restaurantMapper;
+    private static BasicEvalMapper INSTANCE;
 
-    public BasicEvalMapper(){
+    private BasicEvalMapper(){
         this.connection = DbConnection.createConnection();
-        this.restaurantMapper = new RestaurantMapper();
     }
 
-    @Override
+    public static BasicEvalMapper getINSTANCE(){
+        if (INSTANCE == null){
+            INSTANCE = new BasicEvalMapper();
+        }
+        return INSTANCE;
+    }
+
     public BasicEvaluation findByID(int pk) {
         try{
             PreparedStatement query = connection.prepareStatement("SELECT * FROM LIKES WHERE numero = ?");
             query.setInt(1, pk);
             ResultSet resultSet = query.executeQuery();
             if (resultSet.next()){
-                boolean liked;
-                if (resultSet.getString("APPRECIATION") == "T"){
-                    liked = true;
-                }else {liked = false;}
 
-                return new BasicEvaluation(
-                        resultSet.getInt("NUMERO"),
-                        resultSet.getDate("DATE_EVAL").toLocalDate(),
-                        restaurantMapper.findByID(resultSet.getInt("FK_REST")),
-                        liked,
-                        resultSet.getString("ADRESSE_IP")
-                );
+                BasicEvaluation retour = getBaseEvalFromRS(resultSet);
+
+                retour.getRestaurant().getEvaluations().add(retour);
+                return retour;
+
             }
             else {
                 System.out.println("Aucune eval trouvée.");
@@ -56,7 +59,6 @@ public class BasicEvalMapper implements IMapper<BasicEvaluation> {
         return null;
     }
 
-    @Override
     public HashSet<BasicEvaluation> findAll() {
         try {
             PreparedStatement query = connection.prepareStatement("SELECT * FROM LIKES");
@@ -64,18 +66,11 @@ public class BasicEvalMapper implements IMapper<BasicEvaluation> {
 
             HashSet<BasicEvaluation> retour = new HashSet(); //ideally here, I'd make "retour" a Set, and initialize it as a HashSet.
             while (resultSet.next()){
-                boolean liked;
-                if (resultSet.getString("APPRECIATION") == "T"){
-                    liked = true;
-                }else {liked = false;}
 
-                BasicEvaluation base = new BasicEvaluation(
-                        resultSet.getInt("NUMERO"),
-                        resultSet.getDate("DATE_EVAL").toLocalDate(),
-                        restaurantMapper.findByID(resultSet.getInt("FK_REST")),
-                        liked,
-                        resultSet.getString("ADRESSE_IP")
-                );
+
+                BasicEvaluation base = getBaseEvalFromRS(resultSet);
+                base.getRestaurant().getEvaluations().add(base);
+
                 retour.add(base);
             }
             return retour;
@@ -85,7 +80,27 @@ public class BasicEvalMapper implements IMapper<BasicEvaluation> {
         }
     }
 
-    @Override
+    public List<BasicEvaluation> findForRestaurant(Restaurant restaurant){
+        try {
+            PreparedStatement findFRes = connection.prepareStatement(
+                    "SELECT * FROM LIKES WHERE FK_REST = ?"
+            );
+            findFRes.setInt(1, restaurant.getId());
+
+            ResultSet resultSet = findFRes.executeQuery();
+            List<BasicEvaluation> retour = new ArrayList<>();
+            while (resultSet.next()){
+                retour.add(getBaseEvalFromRS(resultSet));
+            }
+            return retour;
+        }catch (SQLException e){
+            System.out.println("Find for res Basic fucked up");
+            System.out.println(e);
+        }
+
+        return null;
+    }
+
     public BasicEvaluation insert(BasicEvaluation basicEvaluation) {
         try {
             PreparedStatement insert = connection.prepareStatement(
@@ -114,18 +129,8 @@ public class BasicEvalMapper implements IMapper<BasicEvaluation> {
             ResultSet resultSet = fetchback.executeQuery();
 
             if (resultSet.next()){
-                boolean liked;
-                if (resultSet.getString("APPRECIATION") == "T"){
-                    liked = true;
-                }else {liked = false;}
-
-                BasicEvaluation base = new BasicEvaluation(
-                        resultSet.getInt("NUMERO"),
-                        resultSet.getDate("DATE_EVAL").toLocalDate(),
-                        restaurantMapper.findByID(resultSet.getInt("FK_REST")),
-                        liked,
-                        resultSet.getString("ADRESSE_IP")
-                );
+                BasicEvaluation base = getBaseEvalFromRS(resultSet);
+                base.getRestaurant().getEvaluations().add(base);
                 return base; //by doing this we assure that the city returned has an ID
             }
         }catch (SQLException e){
@@ -135,7 +140,6 @@ public class BasicEvalMapper implements IMapper<BasicEvaluation> {
         return null;
     }
 
-    @Override
     public BasicEvaluation update(BasicEvaluation basicEvaluation) {
         try {
             PreparedStatement update = connection.prepareStatement(
@@ -166,19 +170,29 @@ public class BasicEvalMapper implements IMapper<BasicEvaluation> {
         }
     }
 
-    @Override
-    public void delete(BasicEvaluation basicEvaluation) {
+    public void deleteForRestaurant(Restaurant restaurant){
         try {
-            PreparedStatement deleteQuery = connection.prepareStatement("DELETE FROM LIKES WHERE numero = ?");
-            deleteQuery.setInt(1, basicEvaluation.getId());
-
-            int check = deleteQuery.executeUpdate();
-            if (check==0){
-                throw new SQLException();
-            }
+            PreparedStatement delete = connection.prepareStatement(
+                    "DELETE FROM LIKES WHERE FK_REST = ?"
+            );
+            delete.setInt(1, restaurant.getId());
+            delete.executeUpdate();
         }catch (SQLException e){
-            System.out.println("delete fucked up");
             System.out.println(e);
         }
+    }
+
+    private BasicEvaluation getBaseEvalFromRS(ResultSet rs) throws SQLException{
+        boolean liked;
+        if (rs.getString("APPRECIATION").equals("T")){
+            liked = true;
+        }else {liked = false;}
+
+        return new BasicEvaluation(
+                rs.getInt("NUMERO"),
+                rs.getDate("DATE_EVAL").toLocalDate(),
+                RestaurantMapper.getINSTANCE().findByID(rs.getInt("FK_REST")),
+                liked,
+                rs.getString("ADRESSE_IP"));
     }
 }
