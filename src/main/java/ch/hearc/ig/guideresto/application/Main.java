@@ -29,7 +29,7 @@ public class Main {
         CLI cli = new CLI(scanner, printStream, fakeItems);
         cli.start();
     } else {
-        CLIv2 clIv2 = new CLIv2(scanner, printStream, fakeItems);
+        CLIv2 clIv2 = new CLIv2(scanner, printStream);
         clIv2.start();
     }
   }

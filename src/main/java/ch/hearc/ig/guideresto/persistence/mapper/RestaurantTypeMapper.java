@@ -1,7 +1,5 @@
 package ch.hearc.ig.guideresto.persistence.mapper;
 
-import ch.hearc.ig.guideresto.business.City;
-import ch.hearc.ig.guideresto.business.Restaurant;
 import ch.hearc.ig.guideresto.business.RestaurantType;
 import ch.hearc.ig.guideresto.persistence.DbConnection;
 
@@ -19,7 +17,7 @@ public final class RestaurantTypeMapper {
     private Map<Integer, RestaurantType> activeRestaurantType = new LinkedHashMap<>();
 
     private RestaurantTypeMapper(){
-        this.connection = DbConnection.createConnection();
+        this.connection = DbConnection.getConnection();
     }
 
     public static RestaurantTypeMapper getINSTANCE() {

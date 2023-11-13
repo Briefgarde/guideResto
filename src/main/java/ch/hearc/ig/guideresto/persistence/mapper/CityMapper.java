@@ -1,7 +1,6 @@
 package ch.hearc.ig.guideresto.persistence.mapper;
 
 import ch.hearc.ig.guideresto.business.City;
-import ch.hearc.ig.guideresto.business.Restaurant;
 import ch.hearc.ig.guideresto.persistence.DbConnection;
 
 
@@ -16,7 +15,7 @@ public final class CityMapper{
     private Map<Integer, City> activeCity = new LinkedHashMap<>();
     
     private CityMapper(){
-        this.connection = DbConnection.createConnection();
+        this.connection = DbConnection.getConnection();
     }
 
 
@@ -62,7 +61,7 @@ public final class CityMapper{
             ResultSet resultSet = query.executeQuery();
 
             while (resultSet.next()){
-                if (activeCity.containsKey(resultSet.getInt("NUMERO"))){
+                if (!activeCity.containsKey(resultSet.getInt("NUMERO"))){
                     activeCity.put(
                             resultSet.getInt("NUMERO"),
                             new City(
@@ -80,68 +79,25 @@ public final class CityMapper{
         }
         return null;
     }
-    public City insert(City newCity) {
-        try {
-            PreparedStatement insert = connection.prepareStatement("INSERT INTO villes (CODE_POSTAL, NOM_VILLE) VALUES (?, ?)");
-            insert.setString(1, newCity.getZipCode());
-            insert.setString(2, newCity.getCityName());
-            insert.executeQuery();
-            System.out.println("Insert ok"); //hahaha j'aimerai bien avoir des logs maintenant
-        }catch (SQLException e){
-            System.out.println("Insert fucked up");
-            System.out.println(e);
-        }
 
+    private void insert(City city){
         try {
-            PreparedStatement fetchback = connection.prepareStatement("SELECT * FROM VILLES WHERE numero = (SELECT MAX(numero) FROM VILLES);");
-            //because of how the trigger and the sequence for the PK of the tabke work, the PK of the latest inserted is always the biggest one.
-            ResultSet resultSet = fetchback.executeQuery();
-
-            if (resultSet.next()){
-                City city = new City(
-                        resultSet.getInt("numero"),
-                        resultSet.getString("CODE_POSTAL"),
-                        resultSet.getString("nom_ville")
-                );
-                return city; //by doing this we assure that the city returned has an ID
-            }
-        }catch (SQLException e){
-            System.out.println("FetchBack fucked up");
-            System.out.println(e);
-        }
-        return null;
-    }
-
-    public City insert(String name, String zipcode){
-        try {
-            PreparedStatement getPK = connection.prepareStatement(
-                    "SELECT SEQ_VILLES.nextval FROM dual"
-            );
-            ResultSet resPK = getPK.executeQuery();
-            int pk = -1;
-            if (resPK.next()){
-                pk = resPK.getInt("NEXTVAL");
-            } else { throw new SQLException("next val didn't work");}
             PreparedStatement insert = connection.prepareStatement(
-                    "INSERT INTO VILLES (NUMERO, CODE_POSTAL, NOM_VILLE) VALUES (?, ?, ?)"
+                    "INSERT INTO VILLES (NUMERO, CODE_POSTAL, NOM_VILLE)" +
+                            "VALUES (?, ?, ?)"
             );
-            insert.setInt(1, pk);
-            insert.setString(2, zipcode);
-            insert.setString(3, name);
-            insert.executeQuery();
+            insert.setInt(1, city.getId());
+            insert.setString(2, city.getZipCode());
+            insert.setString(3, city.getCityName());
 
-            City ret = findByID(pk);
-
-            return ret;
+            insert.executeUpdate();
 
         }catch (SQLException e){
-            System.out.println("CITY INSERT FUCKED UP");
+            System.out.println(e);
+            System.out.println("insert city no good");
         }
 
-        return null;
     }
-
-
     public City update(City city) {
         try {
             PreparedStatement update = connection.prepareStatement("UPDATE villes SET CODE_POSTAL = ?, NOM_VILLE = ? WHERE numero = ?");
@@ -178,6 +134,40 @@ public final class CityMapper{
             System.out.println("delete fucked up");
             System.out.println(e);
         }
+    }
+
+    public City createNewCity(String zipcode, String name){
+        try {
+            PreparedStatement getPK = connection.prepareStatement(
+                    "SELECT SEQ_VILLES.NEXTVAL FROM DUAL"
+            );
+
+            ResultSet resPK = getPK.executeQuery();
+            int pk = -1;
+            if (resPK.next()){
+                pk = resPK.getInt("NEXTVAL");
+            }
+
+            City city = new City(pk, zipcode, name);
+            insert(city);
+            activeCity.put(city.getId(), city);
+            return city;
+        }catch (SQLException e){
+            System.out.println("create new city no good");
+            System.out.println(e);
+        }
+
+        return null;
+    }
+
+    private City createCityFromRS(ResultSet rs) throws SQLException{
+        City city = new City(
+                rs.getInt("numero"),
+                rs.getString("CODE_POSTAL"),
+                rs.getString("nom_ville")
+        );
+        activeCity.put(city.getId(), city);
+        return city;
     }
 
 

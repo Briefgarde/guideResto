@@ -31,6 +31,7 @@ public class FakeItems {
         EvaluationCriteria critCadre = new EvaluationCriteria(3, "Cadre", "L'ambiance et la décoration sont-elles bonnes ?");
 
         City city = new City(1, "2000", "Neuchatel");
+        City city2 = new City(2, "5000", "Bienne");
 
         Restaurant restaurant = new Restaurant(1, "Fleur-de-Lys", "Pizzeria au centre de Neuchâtel", "http://www.pizzeria-neuchatel.ch/", "Rue du Bassin 10", city, typeSuisse);
         city.getRestaurants().add(restaurant);
@@ -70,7 +71,7 @@ public class FakeItems {
 
         this.types = Set.of(typeSuisse, typeGastro, typePizzeria);
         this.criterias = Set.of(critService, critCuisine, critCadre);
-        this.cities = Set.of(city);
+        this.cities = Set.of(city, city2);
         this.restaurants = Set.of(restaurant, restaurant2);
     }
 

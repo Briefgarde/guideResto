@@ -1,35 +1,32 @@
 package ch.hearc.ig.guideresto.presentation;
 
 import ch.hearc.ig.guideresto.business.*;
-import ch.hearc.ig.guideresto.persistence.FakeItems;
+import ch.hearc.ig.guideresto.persistence.DbConnection;
 import ch.hearc.ig.guideresto.persistence.mapper.*;
 
 import java.io.PrintStream;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
-import java.time.LocalDate;
+import java.sql.SQLException;
 import java.util.InputMismatchException;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public class CLIv2 {
 
   private final Scanner scanner;
   private final PrintStream printStream;
-  private final FakeItems fakeItems;
+
 
 
 
   // Injection de dépendances
-  public CLIv2(Scanner scanner, PrintStream printStream, FakeItems fakeItems) {
+  public CLIv2(Scanner scanner, PrintStream printStream) {
     this.scanner = scanner;
     this.printStream = printStream;
-    this.fakeItems = fakeItems; //I'll have to slowly remove functionalities of this.
-
   }
 
   public void start() {
@@ -146,8 +143,8 @@ public class CLIv2 {
       String zipCode = readString();
       println("Veuillez entrer le nom de la nouvelle ville : ");
       String cityName = readString();
-      City city = CityMapper.getINSTANCE().insert(cityName, zipCode);
-      return city;
+
+      return CityMapper.getINSTANCE().createNewCity(zipCode, cityName);
     }
 
     return searchCityByZipCode(cities, choice).orElseGet(() -> pickCity(cities));
@@ -172,10 +169,7 @@ public class CLIv2 {
     Set<RestaurantType> restaurantTypes = RestaurantTypeMapper.getINSTANCE().findAll();
     RestaurantType chosenType = pickRestaurantType(restaurantTypes);
 
-    Set<Restaurant> restaurants = fakeItems.getAllRestaurants()
-        .stream()
-        .filter(r -> r.getType().getLabel().equalsIgnoreCase(chosenType.getLabel()))
-        .collect(toUnmodifiableSet());
+    Set<Restaurant> restaurants = RestaurantMapper.getINSTANCE().findResByType(chosenType.getLabel());
 
     Optional<Restaurant> maybeRestaurant = pickRestaurant(restaurants);
     maybeRestaurant.ifPresent(this::showRestaurant);
@@ -194,21 +188,19 @@ public class CLIv2 {
     City city;
     do
     { // La sélection d'une ville est obligatoire, donc l'opération se répètera tant qu'aucune ville n'est sélectionnée.
-      Set<City> cities = fakeItems.getCities();
+      Set<City> cities = CityMapper.getINSTANCE().findAll();
       city = pickCity(cities);
     } while (city == null);
 
     RestaurantType restaurantType;
 
     // La sélection d'un type est obligatoire, donc l'opération se répètera tant qu'aucun type n'est sélectionné.
-    Set<RestaurantType> restaurantTypes = fakeItems.getRestaurantTypes();
+    Set<RestaurantType> restaurantTypes = RestaurantTypeMapper.getINSTANCE().findAll();
     restaurantType = pickRestaurantType(restaurantTypes);
 
-    Restaurant restaurant = new Restaurant(null, name, description, website, street, city,
-        restaurantType);
+    Restaurant restaurant = RestaurantMapper.getINSTANCE().createRestaurant(name, description, website, street, city, restaurantType);
     city.getRestaurants().add(restaurant);
     restaurant.getAddress().setCity(city);
-    fakeItems.getAllRestaurants().add(restaurant);
 
     showRestaurant(restaurant);
   }
@@ -241,11 +233,6 @@ public class CLIv2 {
       showRestaurantMenu();
       choice = readInt();
       proceedRestaurantMenu(choice, restaurant);
-      RestaurantMapper.getINSTANCE().update(restaurant);
-      //unless the user makes the terminal crash
-      // (which is a use case I'm not going to deal with)
-      // the user always circle back to this after doing any kind of potential change to the restaurant
-      // thus, it is the ideal moment to update the restaurant in the db
     } while (choice != 0 && choice != 6); // 6 car le restaurant est alors supprimé...
 
   }
@@ -306,8 +293,9 @@ public class CLIv2 {
   }
 
   private void addBasicEvaluation(Restaurant restaurant, Boolean like) {
-    BasicEvaluation eval = new BasicEvaluation(null, LocalDate.now(), restaurant, like, getIpAddress());
-    restaurant.getEvaluations().add(eval);
+    //basic eval get inserted in the DB as we go, so we don't need to include them when updating the restaurant
+    BasicEvaluation evaluation = BasicEvalMapper.getINSTANCE().createBasicEval(restaurant, like, getIpAddress());
+    restaurant.getEvaluations().add(evaluation);
     println("Votre vote a été pris en compte !");
   }
 
@@ -318,7 +306,6 @@ public class CLIv2 {
       throw new RuntimeException(ex);
     }
   }
-
   private void evaluateRestaurant(Restaurant restaurant) {
     println("Merci d'évaluer ce restaurant !");
     println("Quel est votre nom d'utilisateur ? ");
@@ -326,21 +313,37 @@ public class CLIv2 {
     println("Quel commentaire aimeriez-vous publier ?");
     String comment = readString();
 
-    CompleteEvaluation eval = new CompleteEvaluation(null, LocalDate.now(), restaurant, comment,
-        username);
+    CompleteEvaluation eval = CompleteEvalMapper.getINSTANCE().createEvaluation(restaurant, username, comment);
     restaurant.getEvaluations().add(eval);
 
     println("Veuillez svp donner une note entre 1 et 5 pour chacun de ces critères : ");
 
     Set<EvaluationCriteria> evaluationCriterias = EvaluationCriteriaMapper.getINSTANCE().findAll();
 
-    evaluationCriterias.forEach(currentCriteria -> {
-      println(currentCriteria.getName() + " : " + currentCriteria.getDescription());
-      Integer note = readInt();
-      Grade grade = new Grade(null, note, eval, currentCriteria);
-      eval.getGrades().add(grade);
-    });
 
+    try {
+      DbConnection.getConnection().setAutoCommit(false);
+      evaluationCriterias.forEach(currentCriteria -> {
+        println(currentCriteria.getName() + " : " + currentCriteria.getDescription());
+        Integer note = readInt();
+        Grade grade = CompleteEvalMapper.getINSTANCE().createGradeForEval(note, eval, currentCriteria);
+        eval.getGrades().add(grade);
+      });
+    }catch (SQLException e){
+      System.out.println("Grade creations didn't work out, all current grades for this eval rollbacked");
+      try {
+        DbConnection.getConnection().rollback();
+      } catch (SQLException ex) {
+        System.out.println("big nono rollbacked failed");
+        throw new RuntimeException(ex);
+      }
+    } finally {
+      try {
+        DbConnection.getConnection().setAutoCommit(true);
+      } catch (SQLException e) {
+        throw new RuntimeException(e);
+      }
+    }
     println("Votre évaluation a bien été enregistrée, merci !");
   }
 
@@ -355,7 +358,8 @@ public class CLIv2 {
     restaurant.setWebsite(readString());
     println("Nouveau type de restaurant : ");
 
-    Set<RestaurantType> restaurantTypes = fakeItems.getRestaurantTypes();
+    Set<RestaurantType> restaurantTypes = RestaurantTypeMapper.getINSTANCE().findAll();
+    //since those type comes from the DB, they do have a PK, which mean
 
     RestaurantType newType = pickRestaurantType(restaurantTypes);
     if (newType != restaurant.getType()) {
@@ -363,6 +367,7 @@ public class CLIv2 {
       newType.getRestaurants().add(restaurant);
       restaurant.setType(newType);
     }
+    RestaurantMapper.getINSTANCE().update(restaurant);
 
     println("Merci, le restaurant a bien été modifié !");
   }
@@ -376,11 +381,12 @@ public class CLIv2 {
     Set<City> cities = CityMapper.getINSTANCE().findAll();
 
     City newCity = pickCity(cities);
-    if (newCity.equals(restaurant.getAddress().getCity())) {
+    if (!newCity.equals(restaurant.getAddress().getCity())) {
       restaurant.getAddress().getCity().getRestaurants().remove(restaurant);
       newCity.getRestaurants().add(restaurant);
       restaurant.getAddress().setCity(newCity);
     }
+    RestaurantMapper.getINSTANCE().updateRestAdresse(restaurant);
 
     println("L'adresse a bien été modifiée ! Merci !");
   }

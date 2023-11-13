@@ -16,7 +16,7 @@ public final class EvaluationCriteriaMapper implements IMapper<EvaluationCriteri
     private static EvaluationCriteriaMapper INSTANCE;
     
     private EvaluationCriteriaMapper(){
-        this.connection = DbConnection.createConnection();
+        this.connection = DbConnection.getConnection();
     }
 
     public static EvaluationCriteriaMapper getINSTANCE(){

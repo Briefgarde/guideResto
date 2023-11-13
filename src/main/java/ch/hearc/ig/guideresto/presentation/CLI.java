@@ -20,8 +20,8 @@ import java.util.InputMismatchException;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
-import ch.hearc.ig.guideresto.persistence.mapper.CityMapper;
-import ch.hearc.ig.guideresto.persistence.mapper.IMapper;
+
+
 
 public class CLI {
 
@@ -384,7 +384,7 @@ public class CLI {
     Set<City> cities = fakeItems.getCities();
 
     City newCity = pickCity(cities);
-    if (newCity.equals(restaurant.getAddress().getCity())) {
+    if (!newCity.equals(restaurant.getAddress().getCity())) {
       restaurant.getAddress().getCity().getRestaurants().remove(restaurant);
       newCity.getRestaurants().add(restaurant);
       restaurant.getAddress().setCity(newCity);

@@ -18,7 +18,7 @@ public final class GradeMapper implements IMapper<Grade>{
     private static GradeMapper INSTANCE;
 
     private GradeMapper(){
-        this.connection = DbConnection.createConnection();
+        this.connection = DbConnection.getConnection();
     }
 
     public static GradeMapper getINSTANCE(){

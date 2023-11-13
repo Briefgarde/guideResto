@@ -1,32 +1,25 @@
 package ch.hearc.ig.guideresto.persistence.mapper;
 
 import ch.hearc.ig.guideresto.business.BasicEvaluation;
-import ch.hearc.ig.guideresto.business.City;
 import ch.hearc.ig.guideresto.business.Restaurant;
 import ch.hearc.ig.guideresto.persistence.DbConnection;
 
-import javax.swing.plaf.basic.BasicIconFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.*;
 import java.time.LocalDate;
 import java.sql.Date;
-import java.util.List;
 
 public class BasicEvalMapper{
-    //should this class even implement this interface, given that it likely will never use the findbyId and findAll method ?
-    //more likely, it'll use a findForRestaurant(Restaurant r/int pkRestaurant) type of stuff...
-    //granted, the findByID is useful for the fetchback thing I do in insert/update...
-
     private Connection connection;
 
+    private Map<Integer, BasicEvaluation> activeBaseEval = new LinkedHashMap<>();
     private static BasicEvalMapper INSTANCE;
 
     private BasicEvalMapper(){
-        this.connection = DbConnection.createConnection();
+        this.connection = DbConnection.getConnection();
     }
 
     public static BasicEvalMapper getINSTANCE(){
@@ -90,7 +83,13 @@ public class BasicEvalMapper{
             ResultSet resultSet = findFRes.executeQuery();
             List<BasicEvaluation> retour = new ArrayList<>();
             while (resultSet.next()){
-                retour.add(getBaseEvalFromRS(resultSet));
+                BasicEvaluation eval = getBaseEvalFromRS(resultSet);
+                if (activeBaseEval.containsKey(eval.getId())){
+                    retour.add(activeBaseEval.get(eval.getId()));
+                } else {
+                    activeBaseEval.put(eval.getId(), eval);
+                    retour.add(eval);
+                }
             }
             return retour;
         }catch (SQLException e){
@@ -101,72 +100,27 @@ public class BasicEvalMapper{
         return null;
     }
 
-    public BasicEvaluation insert(BasicEvaluation basicEvaluation) {
+    //To note, the insert method here is only ever supposed to be used when creating a basic eval
+    //as per the method createBasicEval below, where the Eval has a PK already.
+    private void insert(BasicEvaluation basicEvaluation) {
         try {
             PreparedStatement insert = connection.prepareStatement(
-                    "INSERT INTO LIKES (APPRECIATION, DATE_EVAL, ADRESSE_IP, FK_REST) " +
-                            "VALUES (?, ?, ?, ? )"
+                    "INSERT INTO LIKES (NUMERO, APPRECIATION, DATE_EVAL, ADRESSE_IP, FK_REST)" +
+                            "VALUES (?, ?, ?, ?, ?)"
             );
-            String liked;
-            if (basicEvaluation.isLikeRestaurant()){
-                liked = "T";
-            }else {liked = "F";}
+            insert.setInt(1, basicEvaluation.getId());
+            insert.setString(2, boolToCharLiker(basicEvaluation));
+            insert.setDate(3, Date.valueOf(basicEvaluation.getVisitDate()));
+            insert.setString(4, basicEvaluation.getIpAddress());
+            insert.setInt(5, basicEvaluation.getRestaurant().getId());
 
-            insert.setString(1, liked);
-            insert.setDate(2, Date.valueOf(basicEvaluation.getVisitDate()));
-            insert.setString(3, basicEvaluation.getIpAddress());
-            insert.setInt(4, basicEvaluation.getRestaurant().getId());
+            insert.executeUpdate();
 
-            insert.executeQuery();
-            System.out.println("Insert ok");
-        }catch (SQLException e){
-            System.out.println("Insert fucked up");
-            System.out.println(e);
-        }
-        try {
-            PreparedStatement fetchback = connection.prepareStatement("SELECT * FROM LIKES WHERE numero = (SELECT MAX(numero) FROM LIKES);");
-            //because of how the trigger and the sequence for the PK of the tabke work, the PK of the latest inserted is always the biggest one.
-            ResultSet resultSet = fetchback.executeQuery();
-
-            if (resultSet.next()){
-                BasicEvaluation base = getBaseEvalFromRS(resultSet);
-                base.getRestaurant().getEvaluations().add(base);
-                return base; //by doing this we assure that the city returned has an ID
-            }
-        }catch (SQLException e){
-            System.out.println("FetchBack fucked up");
-            System.out.println(e);
-        }
-        return null;
-    }
-
-    public BasicEvaluation update(BasicEvaluation basicEvaluation) {
-        try {
-            PreparedStatement update = connection.prepareStatement(
-                    "INSERT INTO LIKES (APPRECIATION, DATE_EVAL, ADRESSE_IP, FK_REST) " +
-                            "VALUES (?, ?, ?, ? )"
-            );
-            String liked;
-            if (basicEvaluation.isLikeRestaurant()){
-                liked = "T";
-            }else {liked = "F";}
-
-            update.setString(1, liked);
-            update.setDate(2, Date.valueOf(basicEvaluation.getVisitDate()));
-            update.setString(3, basicEvaluation.getIpAddress());
-            update.setInt(4, basicEvaluation.getRestaurant().getId());
-
-            int check = update.executeUpdate();
-            if (check==0){
-                throw new SQLException();
-            } else {
-                return findByID(basicEvaluation.getId());
-            }
+            findByID(basicEvaluation.getId());
 
         }catch (SQLException e){
-            System.out.println("update fucked up");
             System.out.println(e);
-            return null;
+            System.out.println("Basic eval insert noooo good");
         }
     }
 
@@ -183,16 +137,43 @@ public class BasicEvalMapper{
     }
 
     private BasicEvaluation getBaseEvalFromRS(ResultSet rs) throws SQLException{
-        boolean liked;
-        if (rs.getString("APPRECIATION").equals("T")){
-            liked = true;
-        }else {liked = false;}
-
         return new BasicEvaluation(
                 rs.getInt("NUMERO"),
                 rs.getDate("DATE_EVAL").toLocalDate(),
                 RestaurantMapper.getINSTANCE().findByID(rs.getInt("FK_REST")),
-                liked,
+                charToBoolLiker(rs),
                 rs.getString("ADRESSE_IP"));
+    }
+
+    public BasicEvaluation createBasicEval(Restaurant restaurant, Boolean like, String ip){
+        try {
+            PreparedStatement getPK = connection.prepareStatement(
+                    "SELECT SEQ_EVAL.NEXTVAL from dual"
+            );
+            ResultSet resPK = getPK.executeQuery();
+            int pk = -1;
+            if (resPK.next()){
+                pk = resPK.getInt("NEXTVAL");
+            }
+
+            BasicEvaluation basicEvaluation = new BasicEvaluation(pk, LocalDate.now(), restaurant, like, ip);
+            insert(basicEvaluation);
+            return basicEvaluation;
+
+
+
+        }catch (SQLException e){
+            System.out.println(e);
+            System.out.println("No basic eval creation");
+        }
+        return null;
+    }
+
+    private String boolToCharLiker(BasicEvaluation basicEvaluation){
+        return basicEvaluation.isLikeRestaurant() ? "T" : "F";
+    }
+
+    private boolean charToBoolLiker(ResultSet rs) throws SQLException{
+        return rs.getString("APPRECIATION").equals("T") ? true : false;
     }
 }
