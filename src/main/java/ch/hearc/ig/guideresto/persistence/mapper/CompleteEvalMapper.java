@@ -55,12 +55,7 @@ public final class CompleteEvalMapper {
                 );
 
                 while (resultSetNote.next()){
-                    retour.getGrades().add(new Grade(
-                            resultSetNote.getInt("numero"),
-                            resultSetNote.getInt("NOTE"),
-                            retour,
-                            EvaluationCriteriaMapper.getINSTANCE().findByID(resultSetNote.getInt("FK_CRIT"))
-                    ));
+                    retour.getGrades().add(getGradeFromRS(resultSetNote, retour));
                 }
 
                 retour.getRestaurant().getEvaluations().add(retour);
@@ -76,6 +71,7 @@ public final class CompleteEvalMapper {
     }
 
 
+    // I don't know why I though it was a good idea to make it a list of Complete eval btw
     public List<CompleteEvaluation> findForRestaurant(Restaurant restaurant){
         try {
             PreparedStatement queryComms = connection.prepareStatement(
@@ -93,7 +89,7 @@ public final class CompleteEvalMapper {
 
                 if (!activeEvaluation.containsKey(eval.getId())){
                     activeEvaluation.put(eval.getId(), eval);
-                }
+                } // ^^ this is ultimately useless as I don't use it later on...
                 PreparedStatement queryNote = connection.prepareStatement(
                         "SELECT * FROM NOTES WHERE FK_COMM = ?"
                 );
@@ -209,7 +205,6 @@ public final class CompleteEvalMapper {
             System.out.println(e);
             System.out.println("Create grade no good");
         }
-
         return null;
     }
 

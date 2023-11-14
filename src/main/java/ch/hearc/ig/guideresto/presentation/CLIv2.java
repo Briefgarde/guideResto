@@ -334,6 +334,7 @@ public class CLIv2 {
       try {
         DbConnection.getConnection().rollback();
       } catch (SQLException ex) {
+        System.out.println("bro come on");
         System.out.println("big nono rollbacked failed");
         throw new RuntimeException(ex);
       }

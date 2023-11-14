@@ -87,6 +87,7 @@ public final class RestaurantMapper  {
                 }
                 else {
                     Restaurant r = getResFromRS(resultSet);
+                    getAllEvalForRestaurant(r);
                     activeRestaurant.put(r.getId(), r);
                     restaurants.add(r); //This isn't wrong to do, right ? The activeRestaurant can still act as a registre for the restaurant,
                     //while the List makes it easier to work with in the presentation section ?
@@ -118,6 +119,7 @@ public final class RestaurantMapper  {
                     restaurants.add(activeRestaurant.get(resultSet.getInt("NUMERO")));
                 } else { //I should make a Restaurant constructor out of a ResultSet...
                     Restaurant r = getResFromRS(resultSet);
+                    getAllEvalForRestaurant(r);
                     activeRestaurant.put(r.getId(), r);
                     restaurants.add(r);
                 }
@@ -136,7 +138,7 @@ public final class RestaurantMapper  {
                             "FROM restaurants r  \n" +
                             "INNER JOIN TYPES_GASTRONOMIQUES t \n" +
                             "    on t.numero = r.fk_type \n" +
-                            "WHERE t.libelle LIKE ?; "
+                            "WHERE t.libelle LIKE ? "
             );
             query.setString(1, '%' + typeName + '%');
 
@@ -147,6 +149,7 @@ public final class RestaurantMapper  {
                     restaurants.add(activeRestaurant.get(resultSet.getInt("NUMERO")));
                 } else {
                     Restaurant r = getResFromRS(resultSet);
+                    getAllEvalForRestaurant(r);
                     activeRestaurant.put(r.getId(), r);
                     restaurants.add(r);
                 }
@@ -254,6 +257,10 @@ public final class RestaurantMapper  {
     }
 
     public void getAllEvalForRestaurant(Restaurant restaurant){
+        if (!restaurant.getEvaluations().isEmpty()){
+            restaurant.getEvaluations().removeAll(restaurant.getEvaluations());
+        }
+
         List<BasicEvaluation> basicEvals = BasicEvalMapper.getINSTANCE().findForRestaurant(restaurant);
         for (BasicEvaluation basicEvaluation : basicEvals){
             restaurant.getEvaluations().add(basicEvaluation);
